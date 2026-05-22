@@ -1,21 +1,35 @@
 import mongoose from 'mongoose'
 
-const messageSchema = new mongoose.Schema({
-
-  role:String,
-
-  text:String
-
-})
-
 const chatSchema = new mongoose.Schema({
 
-  sessionId:String,
+  title:{
+    type:String,
+    default:'New Chat'
+  },
 
-  messages:[messageSchema]
+  messages:[
 
+    {
+
+      role:{
+        type:String
+      },
+
+      text:{
+        type:String
+      }
+
+    }
+
+  ]
+
+},{
+  timestamps:true
 })
 
-const Chat = mongoose.model('Chat', chatSchema)
+const Chat = mongoose.model(
+  'Chat',
+  chatSchema
+)
 
 export default Chat

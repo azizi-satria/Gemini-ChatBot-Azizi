@@ -1,219 +1,506 @@
+let currentChatId = null
 
-    const promptInput = document.getElementById('prompt')
+const promptInput =
+  document.getElementById('prompt')
 
-    promptInput.addEventListener('keydown', function(e){
+promptInput.addEventListener(
+  'keydown',
+  function(e){
 
-      if(e.key === 'Enter' && !e.shiftKey){
+    if(
+      e.key === 'Enter' &&
+      !e.shiftKey
+    ){
 
-        e.preventDefault()
+      e.preventDefault()
 
-        sendMessage()
-
-      }
-
-    })
-
-    async function sendMessage(){
-
-           
-        const prompt = promptInput.value.trim()
-
-        const button = document.querySelector('button')
-
-button.disabled = true
-
-button.innerText = 'Loading...'
-
-      if(!prompt) return
-
-      const chatBox = document.getElementById('chat-box')
-
-      const fileInput = document.getElementById('document')
-
-      const imageInput = document.getElementById('image')
-
-      chatBox.innerHTML += `
-        <div class="message user">
-          <div class="bubble">
-            ${prompt}
-          </div>
-        </div>
-      `
-
-      promptInput.value = ''
-
-      chatBox.scrollTop = chatBox.scrollHeight
-
-      chatBox.innerHTML += `
-        <div class="message bot" id="loading">
-          <div class="bubble">
-           ⏳ Gemini sedang mengetik...
-          </div>
-        </div>
-      `
-
-      chatBox.scrollTop = chatBox.scrollHeight
-      button.disabled = false
-      button.innerText = 'Kirim'
-
-      try{
-
-        let response
-
-        // DOCUMENT
-        if(fileInput.files.length > 0){
-
-          const formData = new FormData()
-
-          formData.append('document', fileInput.files[0])
-
-          formData.append('prompt', prompt)
-
-          response = await fetch('/generate-from-document', {
-
-            method:'POST',
-
-            body: formData
-
-          })
-
-        }
-
-        // IMAGE
-        else if(imageInput.files.length > 0){
-
-          const formData = new FormData()
-
-          formData.append('image', imageInput.files[0])
-
-          formData.append('prompt', prompt)
-
-          response = await fetch('/generate-from-image', {
-
-            method:'POST',
-
-            body: formData
-
-          })
-
-        }
-
-        // TEXT
-        else{
-
-          response = await fetch('/generate-text', {
-
-            method:'POST',
-
-            headers:{
-              'Content-Type':'application/json'
-            },
-
-            body: JSON.stringify({
-              prompt: prompt
-            })
-
-          })
-
-        }
-
-        const data = await response.json()
-
-        document.getElementById('loading').remove()
-
-        chatBox.innerHTML += `
-          <div class="message bot">
-            <div class="bubble">
-              ${data.result}
-            </div>
-          </div>
-        `
-
-      }catch(error){
-
-        document.getElementById('loading').remove()
-
-        chatBox.innerHTML += `
-          <div class="message bot">
-            <div class="bubble">
-              Quota Gemini habis sementara.
-Tunggu beberapa saat lalu coba lagi.
-            </div>
-          </div>
-        `
-
-      }
-
-      fileInput.value = ''
-      imageInput.value = ''
-
-      chatBox.scrollTop = chatBox.scrollHeight
+      sendMessage()
 
     }
 
-    async function loadHistory(){
+})
 
-  const response = await fetch('/chat-history')
+/* =========================
+   APPEND MESSAGE
+========================= */
 
-  const chats = await response.json()
+function appendMessage(role){
 
-  const historyList = document.getElementById('history-list')
+  const chatBox =
+    document.getElementById('chat-box')
 
-  historyList.innerHTML = ''
+  const messageDiv =
+    document.createElement('div')
 
-  chats.forEach((chat, index) => {
+  messageDiv.classList.add(
+    'message',
+    role
+  )
 
-   historyList.innerHTML += `
+  // AVATAR
+  const avatar =
+    document.createElement('div')
 
-  <div
-    class="history-item"
-    onclick="openChat('${chat._id}')"
-  >
+  avatar.classList.add('avatar')
 
-    Chat ${index + 1}
+  avatar.innerHTML =
 
-  </div>
+    role === 'user'
+    ? '🧑'
+    : '🤖'
 
-`
+  // BUBBLE
+  const bubble =
+    document.createElement('div')
+
+  bubble.classList.add('bubble')
+
+  // USER DI KANAN
+  if(role === 'user'){
+
+    messageDiv.appendChild(bubble)
+
+    messageDiv.appendChild(avatar)
+
+  }
+
+  // BOT DI KIRI
+  else{
+
+    messageDiv.appendChild(avatar)
+
+    messageDiv.appendChild(bubble)
+
+  }
+
+  chatBox.appendChild(messageDiv)
+
+  chatBox.scrollTop =
+    chatBox.scrollHeight
+
+  return bubble
+
+}
+
+function addCopyButtons(){
+
+  document
+  .querySelectorAll('pre')
+  .forEach((block)=>{
+
+    if(
+      block.querySelector('.copy-btn')
+    ) return
+
+    const button =
+      document.createElement('button')
+
+    button.innerText = 'Copy'
+
+    button.classList.add('copy-btn')
+
+    button.onclick = ()=>{
+
+      navigator.clipboard.writeText(
+
+        block.innerText
+
+      )
+
+      button.innerText = 'Copied!'
+
+      setTimeout(()=>{
+
+        button.innerText = 'Copy'
+
+      },2000)
+
+    }
+
+    block.appendChild(button)
 
   })
 
 }
 
-loadHistory()
+/* =========================
+   TYPEWRITER
+========================= */
 
-async function openChat(chatId){
+async function typeWriter(
+  element,
+  text
+){
 
-  const response = await fetch(`/chat/${chatId}`)
+  element.classList.add('typing')
 
-  const chat = await response.json()
+  let currentText = ''
 
-  const chatBox = document.getElementById('chat-box')
+  for(let i = 0; i < text.length; i++){
 
-  chatBox.innerHTML = ''
+    currentText += text.charAt(i)
 
-  chat.messages.forEach((message) => {
+    element.innerHTML =
+      marked.parse(currentText)
 
-    const roleClass =
-      message.role === 'user'
-      ? 'user'
-      : 'bot'
+    hljs.highlightAll()
 
-    chatBox.innerHTML += `
+    const chatBox =
+      document.getElementById('chat-box')
 
-      <div class="message ${roleClass}">
+    chatBox.scrollTop =
+      chatBox.scrollHeight
 
-        <div class="bubble">
+    await new Promise(resolve =>
+      setTimeout(resolve,10)
+    )
 
-          ${message.text}
+  }
 
-        </div>
+  element.classList.remove('typing')
 
-      </div>
+}
+
+document
+.querySelectorAll('pre')
+.forEach((block)=>{
+
+  if(
+    block.querySelector('.copy-btn')
+  ) return
+
+  const button =
+    document.createElement('button')
+
+  button.innerText = 'Copy'
+
+  button.classList.add('copy-btn')
+
+  button.onclick = ()=>{
+
+    navigator.clipboard.writeText(
+
+      block.innerText
+
+    )
+
+    button.innerText = 'Copied!'
+
+    setTimeout(()=>{
+
+      button.innerText = 'Copy'
+
+    },2000)
+
+  }
+
+  block.appendChild(button)
+
+})
+
+/* =========================
+   SEND MESSAGE
+========================= */
+
+async function sendMessage(){
+
+  const prompt =
+    promptInput.value.trim()
+
+  if(!prompt) return
+
+  const button =
+    document.querySelector('.send-btn')
+
+  const fileInput =
+    document.getElementById('document')
+
+  const imageInput =
+    document.getElementById('image')
+
+  // USER MESSAGE
+  const userBubble =
+    appendMessage('user')
+
+  userBubble.innerHTML =
+    marked.parse(prompt)
+
+  promptInput.value = ''
+
+  // BOT LOADING
+  const botBubble =
+    appendMessage('bot')
+
+  botBubble.innerHTML =
+    '⏳ Gemini sedang mengetik...'
+
+  button.disabled = true
+
+  button.innerHTML = 'Loading...'
+
+  try{
+
+    let response
+
+    // DOCUMENT
+    if(fileInput.files.length > 0){
+
+      const formData =
+        new FormData()
+
+      formData.append(
+        'document',
+        fileInput.files[0]
+      )
+
+      formData.append(
+        'prompt',
+        prompt
+      )
+
+      response = await fetch(
+
+        '/generate-from-document',
+
+        {
+
+          method:'POST',
+
+          body:formData
+
+        }
+
+      )
+
+    }
+
+    // IMAGE
+    else if(imageInput.files.length > 0){
+
+      const formData =
+        new FormData()
+
+      formData.append(
+        'image',
+        imageInput.files[0]
+      )
+
+      formData.append(
+        'prompt',
+        prompt
+      )
+
+      response = await fetch(
+
+        '/generate-from-image',
+
+        {
+
+          method:'POST',
+
+          body:formData
+
+        }
+
+      )
+
+    }
+
+    // TEXT
+    else{
+
+      response = await fetch(
+
+        '/generate-text',
+
+        {
+
+          method:'POST',
+
+          headers:{
+            'Content-Type':
+              'application/json'
+          },
+
+          body:JSON.stringify({
+
+            prompt,
+
+            chatId:currentChatId
+
+          })
+
+        }
+
+      )
+
+    }
+
+    const data =
+      await response.json()
+
+    // SAVE CHAT ID
+    currentChatId =
+      data.chatId
+
+    // TYPEWRITER RESPONSE
+    await typeWriter(
+
+      botBubble,
+
+      data.result
+
+    )
+    addCopyButtons()
+
+  }
+
+  catch(error){
+
+    console.log(error)
+
+    botBubble.innerHTML =
+      'Terjadi kesalahan server.'
+
+  }
+
+  finally{
+
+    button.disabled = false
+
+    button.innerHTML = `
+
+      <i class="fa-solid fa-paper-plane"></i>
+
+      Kirim
 
     `
 
-  })
+    fileInput.value = ''
+
+    imageInput.value = ''
+
+    loadHistory()
+
+  }
 
 }
 
+/* =========================
+   LOAD HISTORY
+========================= */
+
+async function loadHistory(){
+
+  try{
+
+    const response =
+      await fetch('/chat-history')
+
+    const chats =
+      await response.json()
+
+    const historyList =
+      document.getElementById(
+        'history-list'
+      )
+
+    historyList.innerHTML = ''
+
+    chats.forEach((chat)=>{
+
+      historyList.innerHTML += `
+
+        <div
+          class="history-item"
+          onclick="openChat('${chat._id}')"
+        >
+
+          ${chat.title}
+
+        </div>
+
+      `
+
+    })
+
+  }
+
+  catch(error){
+
+    console.log(error)
+
+  }
+
+}
+
+/* =========================
+   OPEN CHAT
+========================= */
+
+async function openChat(chatId){
+
+  const response =
+    await fetch(`/chat/${chatId}`)
+
+  const chat =
+    await response.json()
+
+  currentChatId = chat._id
+
+  const chatBox =
+    document.getElementById('chat-box')
+
+  chatBox.innerHTML = ''
+
+  chat.messages.forEach((message)=>{
+
+    const bubble =
+      appendMessage(
+
+        message.role === 'user'
+        ? 'user'
+        : 'bot'
+
+      )
+
+    bubble.innerHTML =
+      marked.parse(message.text)
+
+  })
+
+  hljs.highlightAll()
+
+}
+
+/* =========================
+   NEW CHAT
+========================= */
+
+function newChat(){
+
+  currentChatId = null
+
+  document.getElementById(
+    'chat-box'
+  ).innerHTML = ''
+
+}
+
+promptInput.addEventListener(
+  'input',
+  () => {
+
+    promptInput.style.height = 'auto'
+
+    promptInput.style.height =
+      promptInput.scrollHeight + 'px'
+
+  }
+)
+
+/* =========================
+   INIT
+========================= */
+
+loadHistory()
