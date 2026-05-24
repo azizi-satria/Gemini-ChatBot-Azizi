@@ -2,6 +2,10 @@ import mongoose from 'mongoose'
 
 const chatSchema = new mongoose.Schema({
 
+  sessionId:{
+    type:String
+  },
+
   title:{
     type:String,
     default:'New Chat'
